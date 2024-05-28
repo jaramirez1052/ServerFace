@@ -34,7 +34,6 @@ module.exports = (app, upload, User) => {
       if (!descriptors || descriptors.length === 0) {
         return res.status(400).json({ error: "No se proporcionaron descriptores válidos" });
       }
-      // Aquí puedes almacenar los descriptores recibidos en la base de datos o realizar alguna otra acción necesaria
       res.sendStatus(200);
     } catch (err) {
       console.error('Error al procesar los descriptores de la webcam:', err);

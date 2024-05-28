@@ -1,27 +1,23 @@
 const faceapi = require('face-api.js');
 const canvas = require('canvas');
 const path = require('path');
-const fs = require('fs').promises;
 
 // Configuración de canvas para face-api.js
 const { Canvas, Image, ImageData } = canvas;
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
 // --- Variables Globales ---
-let webcamStream = null;
 let recognizing = false;
-const video = document.createElement('video');
-const resultMessage = document.getElementById('resultMessage'); // Asegúrate de que este elemento exista en el DOM
 
 // --- Carga de Modelos ---
 async function loadModels() {
-    const MODEL_PATH = path.join(__dirname, '../models');
+    const MODEL_PATH = path.resolve(__dirname, '../models');
     try {
         await faceapi.nets.tinyFaceDetector.loadFromDisk(MODEL_PATH);
         await faceapi.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
         await faceapi.nets.faceRecognitionNet.loadFromDisk(MODEL_PATH);
         console.log('Modelos cargados correctamente.');
-        startWebcam();
+        startFaceDetection();
     } catch (err) {
         console.error('Error al cargar los modelos:', err);
     }
@@ -31,27 +27,21 @@ loadModels();
 
 // Iniciar la detección facial
 async function startFaceDetection() {
-    const canvasElement = document.createElement('canvas');
-    const displaySize = { width: video.width, height: video.height };
-
-    document.body.append(canvasElement);
-    faceapi.matchDimensions(canvasElement, displaySize);
-
-    setInterval(async () => {
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-            .withFaceLandmarks()
-            .withFaceDescriptors();
-
-        const resizedDetections = faceapi.resizeResults(detections, displaySize);
-        canvasElement.getContext('2d').clearRect(0, 0, canvasElement.width, canvasElement.height);
-        faceapi.draw.drawDetections(canvasElement, resizedDetections);
-        faceapi.draw.drawFaceLandmarks(canvasElement, resizedDetections);
-
-        if (detections.length > 0) {
-            const descriptor = Array.from(detections[0].descriptor); // Obtener descriptor facial como array
-            sendDescriptorToServer(descriptor); // Enviar al servidor para reconocimiento
-        }
-    }, 300);
+    try {
+        const video = await getVideoStream();
+        setInterval(async () => {
+            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks()
+                .withFaceDescriptors();
+            
+            if (detections.length > 0) {
+                const descriptor = Array.from(detections[0].descriptor);
+                sendDescriptorToServer(descriptor);
+            }
+        }, 300);
+    } catch (error) {
+        console.error('Error al iniciar la detección facial:', error);
+    }
 }
 
 // --- Funciones de Reconocimiento Facial ---
