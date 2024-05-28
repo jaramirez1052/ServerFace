@@ -4,7 +4,6 @@ const multer = require("multer");
 const path = require("path");
 const morgan = require("morgan");
 const mongoose = require("mongoose");
-const fs = require("fs").promises;
 const helmet = require("helmet");
 require("dotenv").config();
 

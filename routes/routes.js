@@ -1,12 +1,13 @@
-const express = require("express");
-const fs = require("fs").promises;
-const path = require("path");
+const express = require('express');
+const fs = require('fs').promises;
+const path = require('path');
+const { extraerDescriptoresFaciales } = require('../utils/funciones');
 
 const router = express.Router();
 
-module.exports = (app, upload, User, extraerDescriptoresFaciales) => {
+module.exports = (app, upload, User) => {
   // Obtener todos los usuarios
-  app.get("/usuarios", async (req, res) => {
+  router.get("/usuarios", async (req, res) => {
     try {
       const users = await User.find().select("-descriptoresFaciales");
       res.json(users);
@@ -16,36 +17,40 @@ module.exports = (app, upload, User, extraerDescriptoresFaciales) => {
   });
 
   // Obtener usuario por cédula
-  app.get("/usuario/:cc", async (req, res) => {
+  router.get("/usuario/:cc", async (req, res) => {
     try {
-      const user = await User.findOne({ cc: req.params.cc }).select(
-        "-descriptoresFaciales"
-      );
-      if (!user)
-        return res.status(404).json({ message: "Usuario no encontrado" });
+      const user = await User.findOne({ cc: req.params.cc }).select("-descriptoresFaciales");
+      if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
       res.json(user);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
   });
 
+  // Recibir el stream de la webcam
+  router.post('/set-webcam-stream', async (req, res) => {
+    try {
+      const { descriptors } = req.body;
+      if (!descriptors || descriptors.length === 0) {
+        return res.status(400).json({ error: "No se proporcionaron descriptores válidos" });
+      }
+      // Aquí puedes almacenar los descriptores recibidos en la base de datos o realizar alguna otra acción necesaria
+      res.sendStatus(200);
+    } catch (err) {
+      console.error('Error al procesar los descriptores de la webcam:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Subir datos de usuario y descriptores faciales
-  app.post("/usuario", upload.single("imagen"), async (req, res) => {
+  router.post("/usuario", upload.single("imagen"), async (req, res) => {
     try {
       const { nombreCompleto, correoInstitucional, telefono, cc } = req.body;
-      if (
-        !req.file ||
-        !nombreCompleto ||
-        !correoInstitucional ||
-        !telefono ||
-        !cc
-      ) {
+      if (!req.file || !nombreCompleto || !correoInstitucional || !telefono || !cc) {
         return res.status(400).json({ error: "Faltan datos obligatorios" });
       }
 
-      const descriptoresFaciales = await extraerDescriptoresFaciales(
-        req.file.path
-      );
+      const descriptoresFaciales = await extraerDescriptoresFaciales(req.file.path);
 
       const newUser = new User({
         nombreCompleto,
@@ -59,34 +64,23 @@ module.exports = (app, upload, User, extraerDescriptoresFaciales) => {
       await newUser.save();
       await fs.unlink(req.file.path);
 
-      res
-        .status(201)
-        .json({ message: "Usuario creado exitosamente", usuario: newUser });
+      res.status(201).json({ message: "Usuario creado exitosamente", usuario: newUser });
     } catch (err) {
       console.error(err);
-      const errorMessage =
-        err.code === 11000 ? "La cédula ya está registrada" : err.message;
-      const statusCode =
-        err.name === "ValidationError" || err.code === 11000 ? 400 : 500;
+      const errorMessage = err.code === 11000 ? "La cédula ya está registrada" : err.message;
+      const statusCode = err.name === "ValidationError" || err.code === 11000 ? 400 : 500;
       res.status(statusCode).json({ error: errorMessage });
     }
   });
 
   // Eliminar usuario por cédula
-  app.delete("/usuario/:cc", async (req, res) => {
+  router.delete("/usuario/:cc", async (req, res) => {
     try {
       const deletedUser = await User.findOneAndDelete({ cc: req.params.cc });
-      if (!deletedUser)
-        return res.status(404).json({ message: "Usuario no encontrado" });
+      if (!deletedUser) return res.status(404).json({ message: "Usuario no encontrado" });
 
       if (deletedUser.imagen) {
-        await fs.unlink(
-          path.join(
-            __dirname,
-            process.env.UPLOAD_DIR || "uploads",
-            deletedUser.imagen
-          )
-        );
+        await fs.unlink(path.join(__dirname, process.env.UPLOAD_DIR || "uploads", deletedUser.imagen));
       }
 
       res.json({ message: "Usuario eliminado correctamente" });
@@ -96,17 +90,9 @@ module.exports = (app, upload, User, extraerDescriptoresFaciales) => {
   });
 
   // Validar descriptores faciales
-  app.post("/validar", upload.single("imagen"), async (req, res) => {
+  router.post("/validar", async (req, res) => {
     try {
-      if (!req.file) {
-        return res
-          .status(400)
-          .json({ error: "No se proporcionó ninguna imagen" });
-      }
-
-      const descriptoresCamara = await extraerDescriptoresFaciales(
-        req.file.path
-      );
+      const { descriptors } = req.body;
 
       const usuarioCoincidente = await User.aggregate([
         {
@@ -123,7 +109,7 @@ module.exports = (app, upload, User, extraerDescriptoresFaciales) => {
                   as: "df",
                   in: {
                     $sum: {
-                      $pow: [{ $subtract: ["$$df", descriptoresCamara] }, 2],
+                      $pow: [{ $subtract: ["$$df", descriptors] }, 2],
                     },
                   },
                 },
@@ -135,8 +121,6 @@ module.exports = (app, upload, User, extraerDescriptoresFaciales) => {
         { $sort: { distancia: 1 } },
         { $limit: 1 },
       ]);
-
-      await fs.unlink(req.file.path);
 
       if (usuarioCoincidente.length > 0) {
         res.json({
@@ -153,3 +137,4 @@ module.exports = (app, upload, User, extraerDescriptoresFaciales) => {
 
   app.use("/", router);
 };
+
