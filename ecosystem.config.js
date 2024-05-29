@@ -1,18 +1,21 @@
 module.exports = {
     apps: [
         {
-            name: "server-app",
+            name: "facial-system-app",
             script: "./app.js",
-            watch: true,
-            max_memory_restart: '1000M',
-            instances: 1,
-            cron_restart: "59 23 * * *",
+            watch: false,
+            max_memory_restart: "1G",
+            instances: "max",
+            exec_mode: "cluster",
+            kill_timeout: 3000,
+
             env: {
-                NODE_ENV: "production",
+                NODE_ENV: "development"
             },
             env_production: {
                 NODE_ENV: "production",
+                PORT: process.env.PORT || 4010
             }
         }
     ]
-}
+};

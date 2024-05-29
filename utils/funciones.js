@@ -1,15 +1,40 @@
+const fetch = require('node-fetch');
 const faceapi = require('face-api.js');
-const canvas = require('canvas');
+const { Canvas, Image, ImageData } = require('canvas');
 const path = require('path');
 
-// Configuración de canvas para face-api.js
-const { Canvas, Image, ImageData } = canvas;
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
-// --- Variables Globales ---
-let recognizing = false;
+// Iniciar la detección facial
+async function recognizeFace() {
+    try {
+        await loadModels();
+        startFaceDetection();
+    } catch (error) {
+        console.error('Error en la detección facial:', error);
+    }
+}
 
-// --- Carga de Modelos ---
+// Obtener el stream de video de la webcam
+async function startWebcam() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const videoElement = document.createElement('video');
+        videoElement.srcObject = stream;
+        await new Promise((resolve) => {
+            videoElement.onloadedmetadata = () => {
+                resolve();
+            };
+        });
+        videoElement.play();
+        return videoElement;
+    } catch (error) {
+        console.error('Error al obtener el stream de video:', error);
+        throw error;
+    }
+}
+
+// Cargar los modelos de detección facial
 async function loadModels() {
     const MODEL_PATH = path.resolve(__dirname, '../models');
     try {
@@ -17,23 +42,21 @@ async function loadModels() {
         await faceapi.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
         await faceapi.nets.faceRecognitionNet.loadFromDisk(MODEL_PATH);
         console.log('Modelos cargados correctamente.');
-        startFaceDetection();
     } catch (err) {
         console.error('Error al cargar los modelos:', err);
+        throw err;
     }
 }
 
-loadModels();
-
-// Iniciar la detección facial
+// Iniciar la detección facial en intervalos regulares
 async function startFaceDetection() {
     try {
-        const video = await getVideoStream();
+        const video = await startWebcam();
         setInterval(async () => {
             const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
                 .withFaceLandmarks()
                 .withFaceDescriptors();
-            
+
             if (detections.length > 0) {
                 const descriptor = Array.from(detections[0].descriptor);
                 sendDescriptorToServer(descriptor);
@@ -44,55 +67,9 @@ async function startFaceDetection() {
     }
 }
 
-// --- Funciones de Reconocimiento Facial ---
-function startWebcam() {
-    navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-            webcamStream = stream;
-            video.srcObject = stream;
-            video.onloadedmetadata = () => {
-                video.play();
-                setInterval(recognizeFace, 1000); // Ejecutar reconocimiento cada segundo
-            };
-            console.log('Webcam iniciada');
-        })
-        .catch(err => {
-            console.error('Error al iniciar la webcam:', err);
-            resultMessage.textContent = 'Error al iniciar la webcam';
-        });
-}
-
-async function recognizeFace() {
-    if (recognizing) return; // Prevenir ejecuciones concurrentes
-    recognizing = true;
-
-    try {
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
-            .withFaceLandmarks()
-            .withFaceDescriptors();
-
-        if (detections.length > 0) {
-            const descriptors = detections.map(d => d.descriptor);
-            await sendDescriptorToServer(descriptors);
-        } else {
-            updateResultBox('grey', 'No se detectó ningún rostro', '', '', '');
-        }
-    } catch (error) {
-        console.error('Error al reconocer el rostro:', error);
-        resultMessage.textContent = 'Error en el reconocimiento facial';
-    } finally {
-        recognizing = false;
-    }
-}
-
+// Enviar el descriptor al servidor
 async function sendDescriptorToServer(descriptors) {
     try {
-        if (descriptors.length === 0) {
-            console.error('No se encontraron descriptores válidos para enviar al servidor');
-            updateResultBox('grey', 'No se detectó ningún rostro', '', '', '');
-            return;
-        }
-
         const response = await fetch('http://149.50.138.128:4010/validar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -106,19 +83,12 @@ async function sendDescriptorToServer(descriptors) {
 
         const data = await response.json();
         if (data.message === "Coincidencia encontrada") {
-            updateResultBox(
-                'green',
-                'Usuario registrado',
-                `Nombre: ${data.usuario.nombreCompleto}`,
-                `Email: ${data.usuario.correoInstitucional}`,
-                `Teléfono: ${data.usuario.telefono}`
-            );
+            console.log('Coincidencia encontrada:', data.usuario);
         } else {
-            updateResultBox('red', 'Usuario no registrado', '', '', '');
+            console.log('Usuario no registrado');
         }
     } catch (error) {
         console.error('Error al enviar descriptor al servidor:', error);
-        resultMessage.textContent = error.message;
     }
 }
 

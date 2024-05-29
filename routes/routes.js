@@ -79,7 +79,7 @@ module.exports = (app, upload, User) => {
       if (!deletedUser) return res.status(404).json({ message: "Usuario no encontrado" });
 
       if (deletedUser.imagen) {
-        await fs.unlink(path.join(__dirname, process.env.UPLOAD_DIR || "uploads", deletedUser.imagen));
+        await fs.unlink(path.join(__dirname, '..', process.env.UPLOAD_DIR || "uploads", deletedUser.imagen));
       }
 
       res.json({ message: "Usuario eliminado correctamente" });
@@ -136,4 +136,3 @@ module.exports = (app, upload, User) => {
 
   app.use("/", router);
 };
-
