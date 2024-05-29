@@ -5,6 +5,8 @@ const path = require("path");
 const morgan = require("morgan");
 const mongoose = require("mongoose");
 const helmet = require("helmet");
+const app = express();
+
 require("dotenv").config();
 
 const { extraerDescriptoresFaciales } = require("./utils/funciones"); 
