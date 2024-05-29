@@ -164,7 +164,7 @@ module.exports = (app, upload, User, extraerDescriptoresFaciales) => {
         // Verificar las credenciales del administrador
         if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
             // Generar un token JWT si las credenciales son válidas
-            const token = jwt.sign({ userId: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+            const token = jwt.sign({ rol: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
             res.json({ token });
         } else {
             res.status(401).json({ error: 'Credenciales inválidas' });
