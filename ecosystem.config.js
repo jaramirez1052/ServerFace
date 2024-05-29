@@ -8,7 +8,7 @@ module.exports = {
             instances: 1,
             cron_restart: "59 23 * * *",
             env: {
-                NODE_ENV: "development",
+                NODE_ENV: "production",
             },
             env_production: {
                 NODE_ENV: "production",

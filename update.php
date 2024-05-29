@@ -11,4 +11,6 @@ exec("cd $repo_dir && npm install");
 // Reiniciar el servicio usando PM2
 exec("cd $repo_dir && pm2 restart ecosystem.config.js");
 
+echo 'Cambios Cargados Correctamente';
+
 ?>
